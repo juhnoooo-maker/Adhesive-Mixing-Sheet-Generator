@@ -1,464 +1,72 @@
-# Ensure we have the exact code structure verified for T1 and T2 with Width support
-html_code = """<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>塗佈配膠單即時計算器</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @media print {
-            .no-print { display: none !important; }
-            .print-only { display: block !important; }
-            body { background: white !important; color: black !important; padding: 0 !important; }
-            .card { border: none !important; shadow: none !important; }
-        }
-        .print-only { display: none; }
-    </style>
-</head>
-<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
-    <!-- Header -->
-    <header class="bg-slate-900 text-white p-4 shadow-md no-print">
-        <div class="max-w-7xl mx-auto flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <i data-lucide="calculator" class="w-7 h-7 text-blue-400"></i>
-                <h1 class="text-xl font-bold tracking-wide">智能塗佈配膠單計算器</h1>
-            </div>
-            <div class="text-xs text-slate-400">版本 v2.0 (支援寬幅與多產品)</div>
-        </div>
-    </header>
+import numpy as np
+import json
 
-    <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
-        
-        <!-- Controls & Single Ticket Generator -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
-            
-            <!-- Input Panel -->
-            <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
-                    <i data-lucide="sliders" class="w-5 h-5 text-blue-600"></i> 生產條件輸入
-                </h2>
+# Define training dataset based on test1.xlsx data (T1: A:10, B:5, C:1 per 500M @ 1000mm)
+# Inputs: [meters / 2000.0, width / 1000.0]
+# Outputs for T1: [A, B, C]
+# Outputs for T2: [B, E, G]
 
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-semibold text-slate-700 mb-1">選擇產品型號</label>
-                        <select id="productSelect" onchange="updateProductBase()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-medium">
-                            <option value="T1">T1 產品 (A:10 / B:5 / C:1)</option>
-                            <option value="T2">T2 產品 (B:10 / E:5 / G:1)</option>
-                        </select>
-                    </div>
+X_train = []
+Y_t1 = []
+Y_t2 = []
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1">目標米數 (M)</label>
-                            <input type="number" id="inputMeters" value="750" min="1" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-lg text-blue-600">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1">塗佈寬幅 (mm)</label>
-                            <input type="number" id="inputWidth" value="1000" min="1" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-lg text-indigo-600">
-                        </div>
-                    </div>
+for m in range(100, 2100, 100):
+    for w in [900, 1000, 1100]:
+        area_factor = (w / 1000.0) * (m / 500.0)
+        X_train.append([m / 2000.0, w / 1000.0])
+        Y_t1.append([10.0 * area_factor, 5.0 * area_factor, 1.0 * area_factor])
+        Y_t2.append([10.0 * area_factor, 5.0 * area_factor, 1.0 * area_factor])
 
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1">預估損耗率 (%)</label>
-                            <input type="number" id="inputLoss" value="0" min="0" step="0.5" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-slate-700 mb-1">固定殘膠量 (kg)</label>
-                            <input type="number" id="inputResidual" value="0" min="0" step="0.1" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
-                        </div>
-                    </div>
-                </div>
+X = np.array(X_train)
+Y1 = np.array(Y_t1)
 
-                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
-                    <div class="font-bold text-slate-700">💡 單位面積換算基準：</div>
-                    <div>基準公式：$用量 = TargetM \\times (TargetWidth / 1000) \\times Rate$</div>
-                    <div>標準基準：500M / 1000mm 寬幅對應 $10 : 5 : 1$</div>
-                </div>
-            </div>
+# Let's train a simple 2-layer MLP (Input 2 -> Hidden 8 -> Output 3) using numpy gradient descent
+np.random.seed(42)
 
-            <!-- Single Ticket Preview & Live Adjustments -->
-            <div class="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                <div>
-                    <div class="flex justify-between items-center border-b pb-3 mb-4">
-                        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i> 車間即時配膠派工單
-                        </h2>
-                        <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition flex items-center gap-2">
-                            <i data-lucide="printer" class="w-4 h-4"></i> 列印配膠單
-                        </button>
-                    </div>
+# T1 weights
+W1 = np.random.randn(2, 8) * 0.1
+b1 = np.zeros((1, 8))
+W2 = np.random.randn(8, 3) * 0.1
+b2 = np.zeros((1, 3))
 
-                    <!-- Ticket Header Details -->
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl text-xs mb-4">
-                        <div><span class="text-slate-500">單號：</span><span id="ticketNo" class="font-mono font-bold">MX-20260922-01</span></div>
-                        <div><span class="text-slate-500">產品：</span><span id="ticketProduct" class="font-bold text-blue-600">T1</span></div>
-                        <div><span class="text-slate-500">米數：</span><span id="ticketMeters" class="font-bold">750 M</span></div>
-                        <div><span class="text-slate-500">寬幅：</span><span id="ticketWidth" class="font-bold text-indigo-600">1000 mm</span></div>
-                    </div>
+# Training loop
+lr = 0.1
+for epoch in range(5000):
+    # Forward
+    z1 = np.dot(X, W1) + b1
+    a1 = np.maximum(0, z1) # ReLU
+    z2 = np.dot(a1, W2) + b2
+    
+    loss = np.mean((z2 - Y1) ** 2)
+    
+    # Backward
+    dz2 = 2 * (z2 - Y1) / len(X)
+    dW2 = np.dot(a1.T, dz2)
+    db2 = np.sum(dz2, axis=0, keepdims=True)
+    
+    da1 = np.dot(dz2, W2.T)
+    dz1 = da1 * (z1 > 0)
+    dW1 = np.dot(X.T, dz1)
+    db1 = np.sum(dz1, axis=0, keepdims=True)
+    
+    W1 -= lr * dW1
+    b1 -= lr * db1
+    W2 -= lr * dW2
+    b2 -= lr * db2
 
-                    <!-- Component Table -->
-                    <div class="overflow-x-auto mb-4">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-100 text-slate-700">
-                                <tr>
-                                    <th class="p-2.5 rounded-l-lg">成分名稱</th>
-                                    <th class="p-2.5">計算公斤 (kg)</th>
-                                    <th class="p-2.5">現場調配重量 (可微調)</th>
-                                    <th class="p-2.5 rounded-r-lg">占比 (%)</th>
-                                </tr>
-                            </thead>
-                            <tbody id="componentRows" class="divide-y divide-slate-100">
-                                <!-- Dynamic rows inserted by JS -->
-                            </tbody>
-                            <tfoot class="font-bold bg-slate-50 border-t">
-                                <tr>
-                                    <td class="p-2.5">總調配量</td>
-                                    <td id="calcTotalKg" class="p-2.5 text-slate-600">0.0 kg</td>
-                                    <td id="actualTotalKg" class="p-2.5 text-blue-600 text-base">0.0 kg</td>
-                                    <td class="p-2.5 text-slate-600">100.0%</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                </div>
+print(f"Final Loss: {loss:.6f}")
 
-                <!-- Visualization -->
-                <div class="h-44 flex items-center justify-center">
-                    <canvas id="glueChart"></canvas>
-                </div>
-            </div>
-        </div>
+# Test prediction for 750M, 1000mm
+x_test = np.array([[750 / 2000.0, 1000 / 1000.0]])
+h = np.maximum(0, np.dot(x_test, W1) + b1)
+pred = np.dot(h, W2) + b2
+print("Prediction for 750M 1000mm:", pred[0])
 
-        <!-- Database & Historical Reference Table -->
-        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm no-print space-y-4">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
-                <div>
-                    <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-                        <i data-lucide="database" class="w-5 h-5 text-blue-600"></i> test1.xlsx 歷史配比資料庫對照表
-                    </h3>
-                    <p class="text-xs text-slate-500 mt-0.5">預設對照表包含標準 100M~2000M 在不同寬幅下的標準配膠量</p>
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="switchTab('T1')" id="tabT1" class="px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm transition">T1 資料庫</button>
-                    <button onclick="switchTab('T2')" id="tabT2" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">T2 資料庫</button>
-                    <button onclick="exportCSV()" class="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5">
-                        <i data-lucide="download" class="w-4 h-4"></i> 匯出 CSV
-                    </button>
-                </div>
-            </div>
-
-            <div class="overflow-x-auto max-h-80 overflow-y-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="bg-slate-100 text-slate-700 sticky top-0">
-                        <tr id="dbTableHeader">
-                            <!-- Dynamic Table Headers -->
-                        </tr>
-                    </thead>
-                    <tbody id="dbTableBody" class="divide-y divide-slate-100">
-                        <!-- Dynamic Database Rows -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- PRINT ONLY SECTION -->
-        <div class="print-only p-8 space-y-6">
-            <div class="text-center border-b pb-4">
-                <h1 class="text-2xl font-bold">塗佈生產車間 - 膠水調配派工單</h1>
-                <p class="text-xs text-gray-500 mt-1">單號：MX-20260922-01 | 列印時間：2026/09/22</p>
-            </div>
-            <div class="grid grid-cols-4 gap-4 text-sm border p-4 rounded">
-                <div><strong>產品型號：</strong><span id="pProduct">T1</span></div>
-                <div><strong>塗佈米數：</strong><span id="pMeters">750 M</span></div>
-                <div><strong>塗佈寬幅：</strong><span id="pWidth">1000 mm</span></div>
-                <div><strong>開單日期：</strong><span>2026/09/22</span></div>
-            </div>
-            <table class="w-full text-left border-collapse border border-gray-300 text-sm">
-                <thead>
-                    <tr class="bg-gray-100">
-                        <th class="border border-gray-300 p-2">原料名稱</th>
-                        <th class="border border-gray-300 p-2">計算用量 (kg)</th>
-                        <th class="border border-gray-300 p-2">實際稱重 (kg)</th>
-                        <th class="border border-gray-300 p-2">調膠人員確認</th>
-                    </tr>
-                </thead>
-                <tbody id="pTableBody">
-                </tbody>
-            </table>
-            <div class="grid grid-cols-3 gap-8 pt-12 text-sm text-center">
-                <div class="border-t border-gray-400 pt-2">開單人員簽章</div>
-                <div class="border-t border-gray-400 pt-2">調配人員簽章</div>
-                <div class="border-t border-gray-400 pt-2">品管確認簽章</div>
-            </div>
-        </div>
-    </main>
-
-    <script>
-        // Database extracted from test1.xlsx
-        const dbData = {
-            T1: [
-                { prod: 'T1', m: 100, w: 1000, a: 2, b: 1, c: 0.2, total: 3.2 },
-                { prod: 'T1', m: 200, w: 1000, a: 4, b: 2, c: 0.4, total: 6.4 },
-                { prod: 'T1', m: 300, w: 1000, a: 6, b: 3, c: 0.6, total: 9.6 },
-                { prod: 'T1', m: 400, w: 1000, a: 8, b: 4, c: 0.8, total: 12.8 },
-                { prod: 'T1', m: 500, w: 1000, a: 10, b: 5, c: 1.0, total: 16.0 },
-                { prod: 'T1', m: 600, w: 1000, a: 12, b: 6, c: 1.2, total: 19.2 },
-                { prod: 'T1', m: 700, w: 900, a: 14, b: 7, c: 1.4, total: 22.4 },
-                { prod: 'T1', m: 800, w: 1000, a: 16, b: 8, c: 1.6, total: 25.6 },
-                { prod: 'T1', m: 900, w: 900, a: 18, b: 9, c: 1.8, total: 28.8 },
-                { prod: 'T1', m: 1000, w: 1000, a: 20, b: 10, c: 2.0, total: 32.0 },
-                { prod: 'T1', m: 1100, w: 1000, a: 22, b: 11, c: 2.2, total: 35.2 },
-                { prod: 'T1', m: 1200, w: 1000, a: 24, b: 12, c: 2.4, total: 38.4 },
-                { prod: 'T1', m: 1300, w: 1000, a: 26, b: 13, c: 2.6, total: 41.6 },
-                { prod: 'T1', m: 1400, w: 1000, a: 28, b: 14, c: 2.8, total: 44.8 },
-                { prod: 'T1', m: 1500, w: 1000, a: 30, b: 15, c: 3.0, total: 48.0 },
-                { prod: 'T1', m: 1600, w: 1000, a: 32, b: 16, c: 3.2, total: 51.2 },
-                { prod: 'T1', m: 1700, w: 900, a: 34, b: 17, c: 3.4, total: 54.4 },
-                { prod: 'T1', m: 1800, w: 900, a: 36, b: 18, c: 3.6, total: 57.6 },
-                { prod: 'T1', m: 1900, w: 1000, a: 38, b: 19, c: 3.8, total: 60.8 },
-                { prod: 'T1', m: 2000, w: 1000, a: 40, b: 20, c: 4.0, total: 64.0 }
-            ],
-            T2: [
-                { prod: 'T2', m: 100, w: 1000, b: 2, e: 1, g: 0.2, total: 3.2 },
-                { prod: 'T2', m: 200, w: 1000, b: 4, e: 2, g: 0.4, total: 6.4 },
-                { prod: 'T2', m: 300, w: 1000, b: 6, e: 3, g: 0.6, total: 9.6 },
-                { prod: 'T2', m: 400, w: 1000, b: 8, e: 4, g: 0.8, total: 12.8 },
-                { prod: 'T2', m: 500, w: 1000, b: 10, e: 5, g: 1.0, total: 16.0 },
-                { prod: 'T2', m: 600, w: 1000, b: 12, e: 6, g: 1.2, total: 19.2 },
-                { prod: 'T2', m: 700, w: 900, b: 14, e: 7, g: 1.4, total: 22.4 },
-                { prod: 'T2', m: 800, w: 1000, b: 16, e: 8, g: 1.6, total: 25.6 },
-                { prod: 'T2', m: 900, w: 900, b: 18, e: 9, g: 1.8, total: 28.8 },
-                { prod: 'T2', m: 1000, w: 1000, b: 20, e: 10, g: 2.0, total: 32.0 },
-                { prod: 'T2', m: 1100, w: 1000, b: 22, e: 11, g: 2.2, total: 35.2 },
-                { prod: 'T2', m: 1200, w: 1000, b: 24, e: 12, g: 2.4, total: 38.4 },
-                { prod: 'T2', m: 1300, w: 1000, b: 26, e: 13, g: 2.6, total: 41.6 },
-                { prod: 'T2', m: 1400, w: 1000, b: 28, e: 14, g: 2.8, total: 44.8 },
-                { prod: 'T2', m: 1500, w: 1000, b: 30, e: 15, g: 3.0, total: 48.0 },
-                { prod: 'T2', m: 1600, w: 1000, b: 32, e: 16, g: 3.2, total: 51.2 },
-                { prod: 'T2', m: 1700, w: 900, b: 34, e: 17, g: 3.4, total: 54.4 },
-                { prod: 'T2', m: 1800, w: 900, b: 36, e: 18, g: 3.6, total: 57.6 },
-                { prod: 'T2', m: 1900, w: 1000, b: 38, e: 19, g: 3.8, total: 60.8 },
-                { prod: 'T2', m: 2000, w: 1000, b: 40, e: 20, g: 4.0, total: 64.0 }
-            ]
-        };
-
-        const productConfigs = {
-            T1: { items: ['A 膠', 'B 膠', 'C 膠'], rates: [0.02, 0.01, 0.002] },
-            T2: { items: ['B 膠', 'E 膠', 'G 膠'], rates: [0.02, 0.01, 0.002] }
-        };
-
-        let currentTab = 'T1';
-        let glueChart = null;
-
-        function init() {
-            lucide.createIcons();
-            renderTable('T1');
-            calculateFormula();
-        }
-
-        function updateProductBase() {
-            calculateFormula();
-        }
-
-        function calculateFormula() {
-            const prod = document.getElementById('productSelect').value;
-            const meters = parseFloat(document.getElementById('inputMeters').value) || 0;
-            const width = parseFloat(document.getElementById('inputWidth').value) || 1000;
-            const loss = (parseFloat(document.getElementById('inputLoss').value) || 0) / 100;
-            const residual = parseFloat(document.getElementById('inputResidual').value) || 0;
-
-            const config = productConfigs[prod];
-            const areaFactor = (width / 1000); // Scaling relative to standard 1000mm width
-
-            // Update Header Display
-            document.getElementById('ticketProduct').innerText = prod;
-            document.getElementById('ticketMeters').innerText = meters + ' M';
-            document.getElementById('ticketWidth').innerText = width + ' mm';
-
-            // Print Sync
-            document.getElementById('pProduct').innerText = prod;
-            document.getElementById('pMeters').innerText = meters + ' M';
-            document.getElementById('pWidth').innerText = width + ' mm';
-
-            const tbody = document.getElementById('componentRows');
-            const pTbody = document.getElementById('pTableBody');
-            tbody.innerHTML = '';
-            pTbody.innerHTML = '';
-
-            let calcTotal = 0;
-            let actualTotal = 0;
-            const chartLabels = [];
-            const chartData = [];
-
-            config.items.forEach((item, idx) => {
-                const baseWeight = meters * config.rates[idx] * areaFactor;
-                const calcWeight = baseWeight * (1 + loss) + (residual / config.items.length);
-                const calcWeightRounded = Math.round(calcWeight * 100) / 100;
-
-                calcTotal += calcWeightRounded;
-                actualTotal += calcWeightRounded;
-
-                chartLabels.push(item);
-                chartData.push(calcWeightRounded);
-
-                // Main UI Row
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td class="p-2.5 font-bold text-slate-800">${item}</td>
-                    <td class="p-2.5 text-slate-600">${calcWeightRounded.toFixed(2)} kg</td>
-                    <td class="p-2.5">
-                        <input type="number" step="0.1" value="${calcWeightRounded.toFixed(2)}" oninput="updateTotals()" class="actual-input w-28 bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    </td>
-                    <td class="ratio-cell p-2.5 text-slate-500 font-mono">0.0%</td>
-                `;
-                tbody.appendChild(tr);
-
-                // Print Row
-                const pTr = document.createElement('tr');
-                pTr.innerHTML = `
-                    <td class="border border-gray-300 p-2">${item}</td>
-                    <td class="border border-gray-300 p-2">${calcWeightRounded.toFixed(2)}</td>
-                    <td class="border border-gray-300 p-2">${calcWeightRounded.toFixed(2)}</td>
-                    <td class="border border-gray-300 p-2"></td>
-                `;
-                pTbody.appendChild(pTr);
-            });
-
-            document.getElementById('calcTotalKg').innerText = calcTotal.toFixed(2) + ' kg';
-            document.getElementById('actualTotalKg').innerText = actualTotal.toFixed(2) + ' kg';
-
-            updateTotals();
-            updateChart(chartLabels, chartData);
-        }
-
-        function updateTotals() {
-            const inputs = document.querySelectorAll('.actual-input');
-            const ratioCells = document.querySelectorAll('.ratio-cell');
-            let total = 0;
-
-            inputs.forEach(input => {
-                total += parseFloat(input.value) || 0;
-            });
-
-            document.getElementById('actualTotalKg').innerText = total.toFixed(2) + ' kg';
-
-            inputs.forEach((input, idx) => {
-                const val = parseFloat(input.value) || 0;
-                const ratio = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
-                ratioCells[idx].innerText = ratio + '%';
-            });
-        }
-
-        function updateChart(labels, data) {
-            const ctx = document.getElementById('glueChart').getContext('2d');
-            if (glueChart) glueChart.destroy();
-
-            glueChart = new Chart(ctx, {
-                type: 'doughnut',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: ['#3b82f6', '#6366f1', '#10b981', '#f59e0b']
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { position: 'right' }
-                    }
-                }
-            });
-        }
-
-        function switchTab(prod) {
-            currentTab = prod;
-            document.getElementById('tabT1').className = prod === 'T1' ? 'px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm transition' : 'px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
-            document.getElementById('tabT2').className = prod === 'T2' ? 'px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm transition' : 'px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
-            renderTable(prod);
-        }
-
-        function renderTable(prod) {
-            const header = document.getElementById('dbTableHeader');
-            const body = document.getElementById('dbTableBody');
-            const rows = dbData[prod];
-
-            if (prod === 'T1') {
-                header.innerHTML = `
-                    <th class="p-3">產品</th>
-                    <th class="p-3">塗佈米數 (M)</th>
-                    <th class="p-3">寬幅 (mm)</th>
-                    <th class="p-3">A 膠 (kg)</th>
-                    <th class="p-3">B 膠 (kg)</th>
-                    <th class="p-3">C 膠 (kg)</th>
-                    <th class="p-3">總配膠量 (kg)</th>
-                `;
-                body.innerHTML = rows.map(r => `
-                    <tr class="hover:bg-slate-50">
-                        <td class="p-3 font-bold">${r.prod}</td>
-                        <td class="p-3 font-semibold text-blue-600">${r.m} M</td>
-                        <td class="p-3 text-slate-600">${r.w} mm</td>
-                        <td class="p-3">${r.a.toFixed(1)}</td>
-                        <td class="p-3">${r.b.toFixed(1)}</td>
-                        <td class="p-3">${r.c.toFixed(1)}</td>
-                        <td class="p-3 font-bold text-slate-900">${r.total.toFixed(1)}</td>
-                    </tr>
-                `).join('');
-            } else {
-                header.innerHTML = `
-                    <th class="p-3">產品</th>
-                    <th class="p-3">塗佈米數 (M)</th>
-                    <th class="p-3">寬幅 (mm)</th>
-                    <th class="p-3">B 膠 (kg)</th>
-                    <th class="p-3">E 膠 (kg)</th>
-                    <th class="p-3">G 膠 (kg)</th>
-                    <th class="p-3">總配膠量 (kg)</th>
-                `;
-                body.innerHTML = rows.map(r => `
-                    <tr class="hover:bg-slate-50">
-                        <td class="p-3 font-bold">${r.prod}</td>
-                        <td class="p-3 font-semibold text-blue-600">${r.m} M</td>
-                        <td class="p-3 text-slate-600">${r.w} mm</td>
-                        <td class="p-3">${r.b.toFixed(1)}</td>
-                        <td class="p-3">${r.e.toFixed(1)}</td>
-                        <td class="p-3">${r.g.toFixed(1)}</td>
-                        <td class="p-3 font-bold text-slate-900">${r.total.toFixed(1)}</td>
-                    </tr>
-                `).join('');
-            }
-        }
-
-        function exportCSV() {
-            const rows = dbData[currentTab];
-            let csv = currentTab === 'T1' ? '產品,塗佈米數(M),寬幅(mm),A膠(kg),B膠(kg),C膠(kg),總配膠量(kg)\\n' : '產品,塗佈米數(M),寬幅(mm),B膠(kg),E膠(kg),G膠(kg),總配膠量(kg)\\n';
-            
-            rows.forEach(r => {
-                if (currentTab === 'T1') {
-                    csv += `${r.prod},${r.m},${r.w},${r.a},${r.b},${r.c},${r.total}\\n`;
-                } else {
-                    csv += `${r.prod},${r.m},${r.w},${r.b},${r.e},${r.g},${r.total}\\n`;
-                }
-            });
-
-            const blob = new Blob(['\\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `${currentTab}_配膠資料庫.csv`;
-            link.click();
-        }
-
-        window.onload = init;
-    </script>
-</body>
-</html>
-"""
-
-with open('index.html', 'w', encoding='utf-8') as f:
-    f.write(html_code)
-
-print("HTML written successfully. Size:", len(html_code))
+# Export model parameters to JSON format for JS
+model_json = {
+    "W1": W1.tolist(),
+    "b1": b1.tolist()[0],
+    "W2": W2.tolist(),
+    "b2": b2.tolist()[0]
+}
+print(json.dumps(model_json))
