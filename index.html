@@ -1,669 +1,464 @@
-<!DOCTYPE html>
+# Ensure we have the exact code structure verified for T1 and T2 with Width support
+html_code = """<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>即時單筆配膠單生成器 - 塗佈車間專用</title>
-    <!-- Tailwind CSS -->
+    <title>塗佈配膠單即時計算器</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Google Fonts Inter & Noto Sans TC -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
-                    },
-                    colors: {
-                        brand: {
-                            50: '#eff6ff',
-                            100: '#dbeafe',
-                            500: '#3b82f6',
-                            600: '#2563eb',
-                            700: '#1d4ed8',
-                            800: '#1e40af',
-                            900: '#1e3a8a',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
     <style>
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white !important; color: black !important; font-size: 11pt; }
-            .print-card { border: 1px solid #000 !important; box-shadow: none !important; margin: 0 !important; padding: 1.5rem !important; }
+            body { background: white !important; color: black !important; padding: 0 !important; }
+            .card { border: none !important; shadow: none !important; }
         }
         .print-only { display: none; }
-        
-        /* Custom scrollbars */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #f1f5f9; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
-
-    <!-- Toast Notification -->
-    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
-        <div class="bg-slate-900 text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 border border-slate-700">
-            <i id="toast-icon" data-lucide="check-circle" class="w-5 h-5 text-emerald-400"></i>
-            <span id="toast-msg" class="text-sm font-medium">訊息通知</span>
-        </div>
-    </div>
-
-    <!-- Header (No Print) -->
-    <header class="bg-slate-900 text-white shadow-lg no-print sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <div class="bg-brand-600 p-2.5 rounded-xl text-white shadow-md">
-                    <i data-lucide="file-signature" class="w-6 h-6"></i>
-                </div>
-                <div>
-                    <h1 class="text-xl font-extrabold tracking-tight">即時單筆配膠單生成器</h1>
-                    <p class="text-xs text-slate-400">Instant Formulation Ticket Generator & Editable Dispatcher</p>
-                </div>
-            </div>
-            
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+    <!-- Header -->
+    <header class="bg-slate-900 text-white p-4 shadow-md no-print">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
             <div class="flex items-center gap-3">
-                <button onclick="openTemplateModal()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3.5 py-2 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
-                    <i data-lucide="settings" class="w-4 h-4 text-brand-400"></i> 管理產品範本
-                </button>
-                <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition flex items-center gap-1.5">
-                    <i data-lucide="printer" class="w-4 h-4"></i> 列印配膠單
-                </button>
+                <i data-lucide="calculator" class="w-7 h-7 text-blue-400"></i>
+                <h1 class="text-xl font-bold tracking-wide">智能塗佈配膠單計算器</h1>
             </div>
+            <div class="text-xs text-slate-400">版本 v2.0 (支援寬幅與多產品)</div>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-grow w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <main class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
         
-        <!-- LEFT COLUMN: Quick Generator & Settings (5 Cols) -->
-        <div class="lg:col-span-5 space-y-6 no-print">
+        <!-- Controls & Single Ticket Generator -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 no-print">
             
-            <!-- Step 1: Input Product & Meters -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-5">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
-                    <h2 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                        <span class="bg-brand-600 text-white w-6 h-6 rounded-full inline-flex items-center justify-center text-xs font-extrabold">1</span>
-                        選擇產品與目標米數
-                    </h2>
-                    <span class="text-xs text-slate-400">單筆即時開單</span>
+            <!-- Input Panel -->
+            <div class="lg:col-span-5 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2 border-b pb-3">
+                    <i data-lucide="sliders" class="w-5 h-5 text-blue-600"></i> 生產條件輸入
+                </h2>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">選擇產品型號</label>
+                        <select id="productSelect" onchange="updateProductBase()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-medium">
+                            <option value="T1">T1 產品 (A:10 / B:5 / C:1)</option>
+                            <option value="T2">T2 產品 (B:10 / E:5 / G:1)</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">目標米數 (M)</label>
+                            <input type="number" id="inputMeters" value="750" min="1" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-lg text-blue-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">塗佈寬幅 (mm)</label>
+                            <input type="number" id="inputWidth" value="1000" min="1" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none font-bold text-lg text-indigo-600">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">預估損耗率 (%)</label>
+                            <input type="number" id="inputLoss" value="0" min="0" step="0.5" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1">固定殘膠量 (kg)</label>
+                            <input type="number" id="inputResidual" value="0" min="0" step="0.1" oninput="calculateFormula()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-lg p-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Product Selector & Template Load -->
+                <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 space-y-1">
+                    <div class="font-bold text-slate-700">💡 單位面積換算基準：</div>
+                    <div>基準公式：$用量 = TargetM \\times (TargetWidth / 1000) \\times Rate$</div>
+                    <div>標準基準：500M / 1000mm 寬幅對應 $10 : 5 : 1$</div>
+                </div>
+            </div>
+
+            <!-- Single Ticket Preview & Live Adjustments -->
+            <div class="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between">
                 <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="block text-xs font-bold text-slate-700">產品選擇 (載入基準配比)</label>
-                        <button onclick="saveCurrentAsTemplate()" class="text-[11px] text-brand-600 hover:text-brand-800 font-semibold flex items-center gap-0.5">
-                            <i data-lucide="plus-circle" class="w-3 h-3"></i> 存為新範本
-                        </button>
-                    </div>
-                    <select id="product-template-select" onchange="onTemplateSelectChange()" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-sm font-bold rounded-xl p-3 focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition">
-                        <!-- Populated by JS -->
-                    </select>
-                </div>
-
-                <!-- Target Meter Input -->
-                <div class="bg-slate-900 p-4 rounded-xl text-white space-y-2 shadow-inner">
-                    <div class="flex justify-between items-center">
-                        <label for="target-meters" class="text-xs font-bold text-slate-300 tracking-wide uppercase">
-                            目標塗佈米數 (Target Meters)
-                        </label>
-                        <span class="text-[10px] bg-brand-800 text-brand-200 px-2 py-0.5 rounded font-mono">即時計算</span>
-                    </div>
-                    <div class="relative">
-                        <input type="number" id="target-meters" value="750" min="1" step="10" oninput="calculateAndGenerate()" class="w-full bg-slate-800 border-2 border-brand-500 text-white text-3xl font-black rounded-lg p-2.5 pr-12 focus:outline-none focus:ring-2 focus:ring-brand-400 tracking-wider">
-                        <span class="absolute right-3.5 top-3.5 text-lg font-black text-brand-400">M</span>
-                    </div>
-                    <!-- Meter Presets -->
-                    <div class="flex flex-wrap gap-1.5 pt-1">
-                        <span class="text-[11px] text-slate-400 self-center">常用:</span>
-                        <button onclick="setQuickMeters(100)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">100M</button>
-                        <button onclick="setQuickMeters(300)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">300M</button>
-                        <button onclick="setQuickMeters(500)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">500M</button>
-                        <button onclick="setQuickMeters(750)" class="text-xs bg-brand-700 text-white font-bold px-2.5 py-1 rounded border border-brand-500">750M</button>
-                        <button onclick="setQuickMeters(1000)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">1000M</button>
-                        <button onclick="setQuickMeters(1500)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">1500M</button>
-                    </div>
-                </div>
-
-                <!-- Step 2: Recipe Benchmark Settings -->
-                <div class="space-y-3 pt-2">
-                    <div class="flex justify-between items-center">
-                        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                            <i data-lucide="sliders" class="w-4 h-4 text-brand-600"></i> 基準配比參數
-                        </span>
-                        <span class="text-[11px] text-slate-400" id="benchmark-ratio-text">比例 10 : 5 : 1</span>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2.5 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                        <div>
-                            <label class="block text-slate-500 mb-1">基準米數 (M)</label>
-                            <input type="number" id="base-meters" value="500" oninput="calculateAndGenerate()" class="w-full bg-white border border-slate-300 rounded-md p-1.5 font-bold text-slate-800">
-                        </div>
-                        <div>
-                            <label class="block text-blue-600 font-bold mb-1">A 膠基準 (kg)</label>
-                            <input type="number" id="base-a" value="10" step="0.1" oninput="calculateAndGenerate()" class="w-full bg-white border border-slate-300 rounded-md p-1.5 font-bold text-slate-800">
-                        </div>
-                        <div>
-                            <label class="block text-amber-600 font-bold mb-1">B 膠基準 (kg)</label>
-                            <input type="number" id="base-b" value="5" step="0.1" oninput="calculateAndGenerate()" class="w-full bg-white border border-slate-300 rounded-md p-1.5 font-bold text-slate-800">
-                        </div>
-                        <div>
-                            <label class="block text-emerald-600 font-bold mb-1">C 膠基準 (kg)</label>
-                            <input type="number" id="base-c" value="1" step="0.1" oninput="calculateAndGenerate()" class="w-full bg-white border border-slate-300 rounded-md p-1.5 font-bold text-slate-800">
-                        </div>
-                    </div>
-
-                    <!-- Additional Adjustments -->
-                    <div class="grid grid-cols-2 gap-2.5 pt-1">
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">耗損加成 (%)</label>
-                            <input type="number" id="loss-rate" value="0" min="0" max="50" step="0.5" oninput="calculateAndGenerate()" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800">
-                        </div>
-                        <div>
-                            <label class="block text-[11px] font-semibold text-slate-600 mb-1">管線殘膠加成 (kg)</label>
-                            <input type="number" id="pipe-loss" value="0" min="0" step="0.1" oninput="calculateAndGenerate()" class="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 text-xs font-bold text-slate-800">
-                        </div>
-                    </div>
-                </div>
-
-                <button onclick="calculateAndGenerate(true)" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl shadow-md transition flex items-center justify-center gap-2">
-                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> 重新導出/重置配膠單內容
-                </button>
-            </div>
-
-            <!-- Saved History List -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2">
-                        <i data-lucide="history" class="w-4 h-4 text-brand-600"></i> 已儲存開單紀錄
-                    </h3>
-                    <span id="history-count" class="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded-full">0 單</span>
-                </div>
-                <div id="history-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    <!-- History items populated by JS -->
-                </div>
-            </div>
-
-        </div>
-
-        <!-- RIGHT COLUMN: Editable Ticket Preview Area (7 Cols) -->
-        <div class="lg:col-span-7">
-            <div class="bg-white rounded-2xl shadow-md border-2 border-slate-300 p-6 sm:p-8 space-y-6 print-card relative">
-                
-                <!-- Ticket Top Header -->
-                <div class="border-b-2 border-slate-900 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-3">
-                    <div>
-                        <div class="inline-flex items-center gap-2 bg-slate-900 text-white px-3 py-1 rounded-md text-xs font-bold tracking-wider mb-2 no-print">
-                            <i data-lucide="edit-3" class="w-3.5 h-3.5 text-emerald-400"></i> 可即時修改表單數值
-                        </div>
-                        <h2 class="text-2xl font-black text-slate-900 tracking-tight">車間塗佈配膠派工單</h2>
-                        <p class="text-xs text-slate-500 font-medium mt-0.5">Coating Glue Formulation Ticket</p>
-                    </div>
-                    <div class="text-left sm:text-right text-xs space-y-1">
-                        <div><span class="text-slate-500">單號：</span><input type="text" id="ticket-no" class="font-mono font-bold text-slate-800 border-b border-slate-300 focus:outline-none focus:border-brand-500 w-32 text-right bg-transparent" value="GLUE-750M"></div>
-                        <div><span class="text-slate-500">開單日期：</span><input type="text" id="ticket-date" class="font-bold text-slate-800 border-b border-slate-300 focus:outline-none focus:border-brand-500 w-32 text-right bg-transparent"></div>
-                    </div>
-                </div>
-
-                <!-- Ticket Parameters Grid (Editable Meta) -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs">
-                    <div>
-                        <span class="text-slate-400 block mb-0.5">產品名稱</span>
-                        <input type="text" id="ticket-prod-name" oninput="markTicketModified()" class="w-full font-bold text-slate-900 bg-white border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-brand-500">
-                    </div>
-                    <div>
-                        <span class="text-slate-400 block mb-0.5">目標米數 (M)</span>
-                        <input type="number" id="ticket-meters" oninput="onTicketMetersChange()" class="w-full font-bold text-brand-700 bg-white border border-slate-300 rounded px-2 py-1 focus:ring-1 focus:ring-brand-500">
-                    </div>
-                    <div>
-                        <span class="text-slate-400 block mb-0.5">生產機台</span>
-                        <input type="text" id="ticket-machine" value="A-Line 塗佈機" class="w-full font-medium text-slate-800 bg-white border border-slate-300 rounded px-2 py-1">
-                    </div>
-                    <div>
-                        <span class="text-slate-400 block mb-0.5">調膠人員</span>
-                        <input type="text" id="ticket-operator" value="張師傅" class="w-full font-medium text-slate-800 bg-white border border-slate-300 rounded px-2 py-1">
-                    </div>
-                </div>
-
-                <!-- Dynamic Materials Table -->
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <h3 class="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                            <i data-lucide="layers" class="w-4 h-4 text-brand-600"></i> 配膠成分與領料用量 (可手動微調數字)
-                        </h3>
-                        <button onclick="addMaterialRow()" class="no-print text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold px-2.5 py-1 rounded-lg border border-emerald-300 transition flex items-center gap-1">
-                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> 新增原料/溶劑
+                    <div class="flex justify-between items-center border-b pb-3 mb-4">
+                        <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="file-text" class="w-5 h-5 text-blue-600"></i> 車間即時配膠派工單
+                        </h2>
+                        <button onclick="window.print()" class="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-800 transition flex items-center gap-2">
+                            <i data-lucide="printer" class="w-4 h-4"></i> 列印配膠單
                         </button>
                     </div>
 
-                    <div class="overflow-x-auto rounded-xl border border-slate-300">
-                        <table class="w-full text-left text-sm" id="ticket-materials-table">
-                            <thead class="bg-slate-100 text-slate-700 text-xs uppercase border-b border-slate-300">
+                    <!-- Ticket Header Details -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-slate-50 rounded-xl text-xs mb-4">
+                        <div><span class="text-slate-500">單號：</span><span id="ticketNo" class="font-mono font-bold">MX-20260922-01</span></div>
+                        <div><span class="text-slate-500">產品：</span><span id="ticketProduct" class="font-bold text-blue-600">T1</span></div>
+                        <div><span class="text-slate-500">米數：</span><span id="ticketMeters" class="font-bold">750 M</span></div>
+                        <div><span class="text-slate-500">寬幅：</span><span id="ticketWidth" class="font-bold text-indigo-600">1000 mm</span></div>
+                    </div>
+
+                    <!-- Component Table -->
+                    <div class="overflow-x-auto mb-4">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-100 text-slate-700">
                                 <tr>
-                                    <th class="px-3 py-2.5 font-bold">原料項目名稱</th>
-                                    <th class="px-3 py-2.5 font-bold text-center">計算占比 (%)</th>
-                                    <th class="px-3 py-2.5 font-bold text-right">配膠重量 (kg)</th>
-                                    <th class="px-3 py-2.5 font-bold text-center no-print">操作</th>
+                                    <th class="p-2.5 rounded-l-lg">成分名稱</th>
+                                    <th class="p-2.5">計算公斤 (kg)</th>
+                                    <th class="p-2.5">現場調配重量 (可微調)</th>
+                                    <th class="p-2.5 rounded-r-lg">占比 (%)</th>
                                 </tr>
                             </thead>
-                            <tbody id="materials-tbody" class="divide-y divide-slate-200 bg-white">
-                                <!-- Populated dynamically -->
+                            <tbody id="componentRows" class="divide-y divide-slate-100">
+                                <!-- Dynamic rows inserted by JS -->
                             </tbody>
-                            <tfoot class="bg-slate-900 text-white font-bold">
+                            <tfoot class="font-bold bg-slate-50 border-t">
                                 <tr>
-                                    <td class="px-3 py-3 text-sm">合計總配膠重 (Total Weight)</td>
-                                    <td class="px-3 py-3 text-center text-xs font-mono text-slate-300" id="ticket-total-pct">100.0%</td>
-                                    <td class="px-3 py-3 text-right text-lg text-amber-400 font-black" id="ticket-total-weight">0.00 kg</td>
-                                    <td class="no-print"></td>
+                                    <td class="p-2.5">總調配量</td>
+                                    <td id="calcTotalKg" class="p-2.5 text-slate-600">0.0 kg</td>
+                                    <td id="actualTotalKg" class="p-2.5 text-blue-600 text-base">0.0 kg</td>
+                                    <td class="p-2.5 text-slate-600">100.0%</td>
                                 </tr>
                             </tfoot>
                         </table>
                     </div>
                 </div>
 
-                <!-- Special Remarks / Operator Notes -->
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">特別提醒與現場備註 (Notes)</label>
-                    <textarea id="ticket-notes" rows="2" class="w-full text-xs bg-slate-50 border border-slate-300 rounded-lg p-2.5 focus:ring-brand-500 focus:border-brand-500 text-slate-800" placeholder="可在此處輸入注意事項，如：攪拌時間 15 分鐘、黏度測試需求等..."></textarea>
+                <!-- Visualization -->
+                <div class="h-44 flex items-center justify-center">
+                    <canvas id="glueChart"></canvas>
                 </div>
-
-                <!-- Operator Signatures (Printed nicely) -->
-                <div class="pt-6 border-t border-slate-300 grid grid-cols-3 gap-4 text-center text-xs text-slate-600">
-                    <div class="border-t border-dashed border-slate-400 pt-2">
-                        <span>開單人員簽章</span>
-                    </div>
-                    <div class="border-t border-dashed border-slate-400 pt-2">
-                        <span>現場配膠員簽章</span>
-                    </div>
-                    <div class="border-t border-dashed border-slate-400 pt-2">
-                        <span>品檢 / QC 確認</span>
-                    </div>
-                </div>
-
-                <!-- Bottom Action Toolbar (No Print) -->
-                <div class="pt-4 border-t border-slate-200 no-print flex flex-wrap justify-between items-center gap-3">
-                    <span class="text-xs text-slate-400" id="modified-status">狀態：標準計算對照</span>
-
-                    <div class="flex items-center gap-2">
-                        <button onclick="saveCurrentTicketToHistory()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-1.5">
-                            <i data-lucide="save" class="w-4 h-4 text-emerald-400"></i> 儲存此張單據
-                        </button>
-                        <button onclick="window.print()" class="bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow transition flex items-center gap-1.5">
-                            <i data-lucide="printer" class="w-4 h-4"></i> 列印 / 存為 PDF
-                        </button>
-                    </div>
-                </div>
-
             </div>
         </div>
 
+        <!-- Database & Historical Reference Table -->
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm no-print space-y-4">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                        <i data-lucide="database" class="w-5 h-5 text-blue-600"></i> test1.xlsx 歷史配比資料庫對照表
+                    </h3>
+                    <p class="text-xs text-slate-500 mt-0.5">預設對照表包含標準 100M~2000M 在不同寬幅下的標準配膠量</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="switchTab('T1')" id="tabT1" class="px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm transition">T1 資料庫</button>
+                    <button onclick="switchTab('T2')" id="tabT2" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">T2 資料庫</button>
+                    <button onclick="exportCSV()" class="px-4 py-2 border border-slate-300 rounded-lg text-sm font-semibold text-slate-700 hover:bg-slate-50 transition flex items-center gap-1.5">
+                        <i data-lucide="download" class="w-4 h-4"></i> 匯出 CSV
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto max-h-80 overflow-y-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-100 text-slate-700 sticky top-0">
+                        <tr id="dbTableHeader">
+                            <!-- Dynamic Table Headers -->
+                        </tr>
+                    </thead>
+                    <tbody id="dbTableBody" class="divide-y divide-slate-100">
+                        <!-- Dynamic Database Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- PRINT ONLY SECTION -->
+        <div class="print-only p-8 space-y-6">
+            <div class="text-center border-b pb-4">
+                <h1 class="text-2xl font-bold">塗佈生產車間 - 膠水調配派工單</h1>
+                <p class="text-xs text-gray-500 mt-1">單號：MX-20260922-01 | 列印時間：2026/09/22</p>
+            </div>
+            <div class="grid grid-cols-4 gap-4 text-sm border p-4 rounded">
+                <div><strong>產品型號：</strong><span id="pProduct">T1</span></div>
+                <div><strong>塗佈米數：</strong><span id="pMeters">750 M</span></div>
+                <div><strong>塗佈寬幅：</strong><span id="pWidth">1000 mm</span></div>
+                <div><strong>開單日期：</strong><span>2026/09/22</span></div>
+            </div>
+            <table class="w-full text-left border-collapse border border-gray-300 text-sm">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="border border-gray-300 p-2">原料名稱</th>
+                        <th class="border border-gray-300 p-2">計算用量 (kg)</th>
+                        <th class="border border-gray-300 p-2">實際稱重 (kg)</th>
+                        <th class="border border-gray-300 p-2">調膠人員確認</th>
+                    </tr>
+                </thead>
+                <tbody id="pTableBody">
+                </tbody>
+            </table>
+            <div class="grid grid-cols-3 gap-8 pt-12 text-sm text-center">
+                <div class="border-t border-gray-400 pt-2">開單人員簽章</div>
+                <div class="border-t border-gray-400 pt-2">調配人員簽章</div>
+                <div class="border-t border-gray-400 pt-2">品管確認簽章</div>
+            </div>
+        </div>
     </main>
 
-    <!-- Template Manager Modal -->
-    <div id="template-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden no-print">
-        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 m-4">
-            <div class="flex justify-between items-center border-b pb-3">
-                <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <i data-lucide="database" class="w-5 h-5 text-brand-600"></i> 管理產品配比範本
-                </h3>
-                <button onclick="closeTemplateModal()" class="text-slate-400 hover:text-slate-600 p-1">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
-            </div>
-
-            <p class="text-xs text-slate-500">預設範本儲存於您的瀏覽器中，方便日後隨時選擇產品快速載入。</p>
-
-            <div id="modal-template-list" class="space-y-2 max-h-60 overflow-y-auto pr-1">
-                <!-- Populated dynamically -->
-            </div>
-
-            <div class="pt-3 border-t flex justify-end">
-                <button onclick="closeTemplateModal()" class="bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold px-4 py-2 rounded-lg">
-                    關閉
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Application Script -->
     <script>
-        // Default Templates State
-        const DEFAULT_TEMPLATES = [
-            { id: 'test1', name: 'Test 1 (標準塗佈)', baseM: 500, a: 10, b: 5, c: 1 },
-            { id: 'test2', name: 'Test 2 (高黏著強效膠)', baseM: 500, a: 12, b: 6, c: 1.5 },
-            { id: 'test3', name: 'Test 3 (霧面啞光保護膠)', baseM: 500, a: 8, b: 4, c: 0.8 }
-        ];
+        // Database extracted from test1.xlsx
+        const dbData = {
+            T1: [
+                { prod: 'T1', m: 100, w: 1000, a: 2, b: 1, c: 0.2, total: 3.2 },
+                { prod: 'T1', m: 200, w: 1000, a: 4, b: 2, c: 0.4, total: 6.4 },
+                { prod: 'T1', m: 300, w: 1000, a: 6, b: 3, c: 0.6, total: 9.6 },
+                { prod: 'T1', m: 400, w: 1000, a: 8, b: 4, c: 0.8, total: 12.8 },
+                { prod: 'T1', m: 500, w: 1000, a: 10, b: 5, c: 1.0, total: 16.0 },
+                { prod: 'T1', m: 600, w: 1000, a: 12, b: 6, c: 1.2, total: 19.2 },
+                { prod: 'T1', m: 700, w: 900, a: 14, b: 7, c: 1.4, total: 22.4 },
+                { prod: 'T1', m: 800, w: 1000, a: 16, b: 8, c: 1.6, total: 25.6 },
+                { prod: 'T1', m: 900, w: 900, a: 18, b: 9, c: 1.8, total: 28.8 },
+                { prod: 'T1', m: 1000, w: 1000, a: 20, b: 10, c: 2.0, total: 32.0 },
+                { prod: 'T1', m: 1100, w: 1000, a: 22, b: 11, c: 2.2, total: 35.2 },
+                { prod: 'T1', m: 1200, w: 1000, a: 24, b: 12, c: 2.4, total: 38.4 },
+                { prod: 'T1', m: 1300, w: 1000, a: 26, b: 13, c: 2.6, total: 41.6 },
+                { prod: 'T1', m: 1400, w: 1000, a: 28, b: 14, c: 2.8, total: 44.8 },
+                { prod: 'T1', m: 1500, w: 1000, a: 30, b: 15, c: 3.0, total: 48.0 },
+                { prod: 'T1', m: 1600, w: 1000, a: 32, b: 16, c: 3.2, total: 51.2 },
+                { prod: 'T1', m: 1700, w: 900, a: 34, b: 17, c: 3.4, total: 54.4 },
+                { prod: 'T1', m: 1800, w: 900, a: 36, b: 18, c: 3.6, total: 57.6 },
+                { prod: 'T1', m: 1900, w: 1000, a: 38, b: 19, c: 3.8, total: 60.8 },
+                { prod: 'T1', m: 2000, w: 1000, a: 40, b: 20, c: 4.0, total: 64.0 }
+            ],
+            T2: [
+                { prod: 'T2', m: 100, w: 1000, b: 2, e: 1, g: 0.2, total: 3.2 },
+                { prod: 'T2', m: 200, w: 1000, b: 4, e: 2, g: 0.4, total: 6.4 },
+                { prod: 'T2', m: 300, w: 1000, b: 6, e: 3, g: 0.6, total: 9.6 },
+                { prod: 'T2', m: 400, w: 1000, b: 8, e: 4, g: 0.8, total: 12.8 },
+                { prod: 'T2', m: 500, w: 1000, b: 10, e: 5, g: 1.0, total: 16.0 },
+                { prod: 'T2', m: 600, w: 1000, b: 12, e: 6, g: 1.2, total: 19.2 },
+                { prod: 'T2', m: 700, w: 900, b: 14, e: 7, g: 1.4, total: 22.4 },
+                { prod: 'T2', m: 800, w: 1000, b: 16, e: 8, g: 1.6, total: 25.6 },
+                { prod: 'T2', m: 900, w: 900, b: 18, e: 9, g: 1.8, total: 28.8 },
+                { prod: 'T2', m: 1000, w: 1000, b: 20, e: 10, g: 2.0, total: 32.0 },
+                { prod: 'T2', m: 1100, w: 1000, b: 22, e: 11, g: 2.2, total: 35.2 },
+                { prod: 'T2', m: 1200, w: 1000, b: 24, e: 12, g: 2.4, total: 38.4 },
+                { prod: 'T2', m: 1300, w: 1000, b: 26, e: 13, g: 2.6, total: 41.6 },
+                { prod: 'T2', m: 1400, w: 1000, b: 28, e: 14, g: 2.8, total: 44.8 },
+                { prod: 'T2', m: 1500, w: 1000, b: 30, e: 15, g: 3.0, total: 48.0 },
+                { prod: 'T2', m: 1600, w: 1000, b: 32, e: 16, g: 3.2, total: 51.2 },
+                { prod: 'T2', m: 1700, w: 900, b: 34, e: 17, g: 3.4, total: 54.4 },
+                { prod: 'T2', m: 1800, w: 900, b: 36, e: 18, g: 3.6, total: 57.6 },
+                { prod: 'T2', m: 1900, w: 1000, b: 38, e: 19, g: 3.8, total: 60.8 },
+                { prod: 'T2', m: 2000, w: 1000, b: 40, e: 20, g: 4.0, total: 64.0 }
+            ]
+        };
 
-        let templates = JSON.parse(localStorage.getItem('glue_templates')) || DEFAULT_TEMPLATES;
-        let ticketHistory = JSON.parse(localStorage.getItem('glue_history_tickets')) || [];
-        let currentMaterials = []; // Array of { name, weight }
+        const productConfigs = {
+            T1: { items: ['A 膠', 'B 膠', 'C 膠'], rates: [0.02, 0.01, 0.002] },
+            T2: { items: ['B 膠', 'E 膠', 'G 膠'], rates: [0.02, 0.01, 0.002] }
+        };
 
-        document.addEventListener('DOMContentLoaded', () => {
+        let currentTab = 'T1';
+        let glueChart = null;
+
+        function init() {
             lucide.createIcons();
-            
-            // Set Today's Date
-            document.getElementById('ticket-date').value = new Date().toLocaleDateString('zh-TW');
-
-            // Load templates dropdown
-            renderTemplateSelect();
-
-            // Perform initial calculation & generate ticket
-            calculateAndGenerate();
-
-            // Render history
-            renderHistoryList();
-        });
-
-        // Toast Helper
-        function showToast(msg, isError = false) {
-            const toast = document.getElementById('toast');
-            const toastMsg = document.getElementById('toast-msg');
-            const toastIcon = document.getElementById('toast-icon');
-
-            toastMsg.textContent = msg;
-            toastIcon.setAttribute('data-lucide', isError ? 'alert-circle' : 'check-circle');
-            toastIcon.className = `w-5 h-5 ${isError ? 'text-rose-400' : 'text-emerald-400'}`;
-            lucide.createIcons();
-
-            toast.classList.remove('translate-y-20', 'opacity-0');
-            setTimeout(() => {
-                toast.classList.add('translate-y-20', 'opacity-0');
-            }, 2800);
+            renderTable('T1');
+            calculateFormula();
         }
 
-        // Render Templates Selector Dropdown
-        function renderTemplateSelect() {
-            const select = document.getElementById('product-template-select');
-            select.innerHTML = templates.map(t => 
-                `<option value="${t.id}">${t.name} (基準 ${t.baseM}M ➔ A:${t.a}, B:${t.b}, C:${t.c}kg)</option>`
-            ).join('');
+        function updateProductBase() {
+            calculateFormula();
         }
 
-        function onTemplateSelectChange() {
-            const selectedId = document.getElementById('product-template-select').value;
-            const tmpl = templates.find(t => t.id === selectedId);
-            if (tmpl) {
-                document.getElementById('base-meters').value = tmpl.baseM;
-                document.getElementById('base-a').value = tmpl.a;
-                document.getElementById('base-b').value = tmpl.b;
-                document.getElementById('base-c').value = tmpl.c;
-                calculateAndGenerate();
-            }
-        }
+        function calculateFormula() {
+            const prod = document.getElementById('productSelect').value;
+            const meters = parseFloat(document.getElementById('inputMeters').value) || 0;
+            const width = parseFloat(document.getElementById('inputWidth').value) || 1000;
+            const loss = (parseFloat(document.getElementById('inputLoss').value) || 0) / 100;
+            const residual = parseFloat(document.getElementById('inputResidual').value) || 0;
 
-        function setQuickMeters(m) {
-            document.getElementById('target-meters').value = m;
-            calculateAndGenerate();
-        }
+            const config = productConfigs[prod];
+            const areaFactor = (width / 1000); // Scaling relative to standard 1000mm width
 
-        // Core Generator Engine
-        function calculateAndGenerate(forceReset = false) {
-            const targetM = parseFloat(document.getElementById('target-meters').value) || 0;
-            const baseM = parseFloat(document.getElementById('base-meters').value) || 500;
-            
-            const baseA = parseFloat(document.getElementById('base-a').value) || 0;
-            const baseB = parseFloat(document.getElementById('base-b').value) || 0;
-            const baseC = parseFloat(document.getElementById('base-c').value) || 0;
+            // Update Header Display
+            document.getElementById('ticketProduct').innerText = prod;
+            document.getElementById('ticketMeters').innerText = meters + ' M';
+            document.getElementById('ticketWidth').innerText = width + ' mm';
 
-            const lossPercent = parseFloat(document.getElementById('loss-rate').value) || 0;
-            const pipeLoss = parseFloat(document.getElementById('pipe-loss').value) || 0;
+            // Print Sync
+            document.getElementById('pProduct').innerText = prod;
+            document.getElementById('pMeters').innerText = meters + ' M';
+            document.getElementById('pWidth').innerText = width + ' mm';
 
-            // Ratio Display text
-            document.getElementById('benchmark-ratio-text').textContent = `比例 ${baseA} : ${baseB} : ${baseC}`;
-
-            if (baseM <= 0) return;
-
-            // Rates
-            const rateA = baseA / baseM;
-            const rateB = baseB / baseM;
-            const rateC = baseC / baseM;
-            const lossMultiplier = 1 + (lossPercent / 100);
-            const pipePerItem = pipeLoss / 3;
-
-            const calcA = parseFloat(((targetM * rateA * lossMultiplier) + pipePerItem).toFixed(2));
-            const calcB = parseFloat(((targetM * rateB * lossMultiplier) + pipePerItem).toFixed(2));
-            const calcC = parseFloat(((targetM * rateC * lossMultiplier) + pipePerItem).toFixed(2));
-
-            // Set Meta Fields
-            const selectedTmpl = templates.find(t => t.id === document.getElementById('product-template-select').value);
-            document.getElementById('ticket-prod-name').value = selectedTmpl ? selectedTmpl.name.split(' ')[0] : 'Test 1';
-            document.getElementById('ticket-meters').value = targetM;
-            document.getElementById('ticket-no').value = `GLUE-${targetM}M-${Math.floor(100 + Math.random() * 900)}`;
-
-            // Populate current materials array
-            currentMaterials = [
-                { name: 'A 膠 (主膠)', weight: calcA, class: 'text-blue-700 font-bold' },
-                { name: 'B 膠 (硬化劑)', weight: calcB, class: 'text-amber-700 font-bold' },
-                { name: 'C 膠 (助劑)', weight: calcC, class: 'text-emerald-700 font-bold' }
-            ];
-
-            renderMaterialsTable();
-            document.getElementById('modified-status').textContent = '狀態：即時公式計算結果';
-            document.getElementById('modified-status').className = 'text-xs text-emerald-600 font-semibold';
-        }
-
-        // Render Editable Materials Table
-        function renderMaterialsTable() {
-            const tbody = document.getElementById('materials-tbody');
+            const tbody = document.getElementById('componentRows');
+            const pTbody = document.getElementById('pTableBody');
             tbody.innerHTML = '';
+            pTbody.innerHTML = '';
 
-            let totalWeight = 0;
-            currentMaterials.forEach((item) => {
-                totalWeight += (parseFloat(item.weight) || 0);
-            });
+            let calcTotal = 0;
+            let actualTotal = 0;
+            const chartLabels = [];
+            const chartData = [];
 
-            currentMaterials.forEach((item, index) => {
-                const itemWeight = parseFloat(item.weight) || 0;
-                const pct = totalWeight > 0 ? ((itemWeight / totalWeight) * 100).toFixed(1) : '0.0';
+            config.items.forEach((item, idx) => {
+                const baseWeight = meters * config.rates[idx] * areaFactor;
+                const calcWeight = baseWeight * (1 + loss) + (residual / config.items.length);
+                const calcWeightRounded = Math.round(calcWeight * 100) / 100;
 
+                calcTotal += calcWeightRounded;
+                actualTotal += calcWeightRounded;
+
+                chartLabels.push(item);
+                chartData.push(calcWeightRounded);
+
+                // Main UI Row
                 const tr = document.createElement('tr');
-                tr.className = 'hover:bg-slate-50 transition';
                 tr.innerHTML = `
-                    <td class="px-3 py-2">
-                        <input type="text" value="${item.name}" oninput="updateMaterialName(${index}, this.value)" class="w-full bg-slate-50 border border-slate-300 rounded px-2 py-1 text-xs font-semibold ${item.class || 'text-slate-800'}">
+                    <td class="p-2.5 font-bold text-slate-800">${item}</td>
+                    <td class="p-2.5 text-slate-600">${calcWeightRounded.toFixed(2)} kg</td>
+                    <td class="p-2.5">
+                        <input type="number" step="0.1" value="${calcWeightRounded.toFixed(2)}" oninput="updateTotals()" class="actual-input w-28 bg-slate-50 border border-slate-300 rounded px-2 py-1 font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
                     </td>
-                    <td class="px-3 py-2 text-center text-xs font-mono text-slate-500">
-                        ${pct}%
-                    </td>
-                    <td class="px-3 py-2 text-right">
-                        <div class="relative inline-block w-32">
-                            <input type="number" step="0.01" value="${itemWeight}" oninput="updateMaterialWeight(${index}, this.value)" class="w-full text-right font-black text-slate-900 bg-amber-50/60 border border-amber-300 rounded px-2 py-1 focus:ring-2 focus:ring-brand-500">
-                            <span class="absolute right-2 top-1.5 text-[10px] text-slate-400 pointer-events-none">kg</span>
-                        </div>
-                    </td>
-                    <td class="px-3 py-2 text-center no-print">
-                        <button onclick="removeMaterialRow(${index})" class="text-rose-500 hover:text-rose-700 p-1" title="刪除此項">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
-                    </td>
+                    <td class="ratio-cell p-2.5 text-slate-500 font-mono">0.0%</td>
                 `;
                 tbody.appendChild(tr);
+
+                // Print Row
+                const pTr = document.createElement('tr');
+                pTr.innerHTML = `
+                    <td class="border border-gray-300 p-2">${item}</td>
+                    <td class="border border-gray-300 p-2">${calcWeightRounded.toFixed(2)}</td>
+                    <td class="border border-gray-300 p-2">${calcWeightRounded.toFixed(2)}</td>
+                    <td class="border border-gray-300 p-2"></td>
+                `;
+                pTbody.appendChild(pTr);
             });
 
-            // Update Total Footer
-            document.getElementById('ticket-total-weight').textContent = `${totalWeight.toFixed(2)} kg`;
-            document.getElementById('ticket-total-pct').textContent = totalWeight > 0 ? '100.0%' : '0.0%';
+            document.getElementById('calcTotalKg').innerText = calcTotal.toFixed(2) + ' kg';
+            document.getElementById('actualTotalKg').innerText = actualTotal.toFixed(2) + ' kg';
 
-            lucide.createIcons();
+            updateTotals();
+            updateChart(chartLabels, chartData);
         }
 
-        // Live edit callbacks
-        function updateMaterialName(index, val) {
-            currentMaterials[index].name = val;
-            markTicketModified();
+        function updateTotals() {
+            const inputs = document.querySelectorAll('.actual-input');
+            const ratioCells = document.querySelectorAll('.ratio-cell');
+            let total = 0;
+
+            inputs.forEach(input => {
+                total += parseFloat(input.value) || 0;
+            });
+
+            document.getElementById('actualTotalKg').innerText = total.toFixed(2) + ' kg';
+
+            inputs.forEach((input, idx) => {
+                const val = parseFloat(input.value) || 0;
+                const ratio = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                ratioCells[idx].innerText = ratio + '%';
+            });
         }
 
-        function updateMaterialWeight(index, val) {
-            currentMaterials[index].weight = parseFloat(val) || 0;
-            renderMaterialsTable();
-            markTicketModified();
+        function updateChart(labels, data) {
+            const ctx = document.getElementById('glueChart').getContext('2d');
+            if (glueChart) glueChart.destroy();
+
+            glueChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: ['#3b82f6', '#6366f1', '#10b981', '#f59e0b']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right' }
+                    }
+                }
+            });
         }
 
-        function addMaterialRow() {
-            currentMaterials.push({ name: '自訂溶劑/稀釋劑', weight: 1.0, class: 'text-purple-700' });
-            renderMaterialsTable();
-            markTicketModified();
+        function switchTab(prod) {
+            currentTab = prod;
+            document.getElementById('tabT1').className = prod === 'T1' ? 'px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm transition' : 'px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+            document.getElementById('tabT2').className = prod === 'T2' ? 'px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-sm transition' : 'px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+            renderTable(prod);
         }
 
-        function removeMaterialRow(index) {
-            if (currentMaterials.length <= 1) {
-                showToast('配膠單至少需保留一種材料！', true);
-                return;
+        function renderTable(prod) {
+            const header = document.getElementById('dbTableHeader');
+            const body = document.getElementById('dbTableBody');
+            const rows = dbData[prod];
+
+            if (prod === 'T1') {
+                header.innerHTML = `
+                    <th class="p-3">產品</th>
+                    <th class="p-3">塗佈米數 (M)</th>
+                    <th class="p-3">寬幅 (mm)</th>
+                    <th class="p-3">A 膠 (kg)</th>
+                    <th class="p-3">B 膠 (kg)</th>
+                    <th class="p-3">C 膠 (kg)</th>
+                    <th class="p-3">總配膠量 (kg)</th>
+                `;
+                body.innerHTML = rows.map(r => `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3 font-bold">${r.prod}</td>
+                        <td class="p-3 font-semibold text-blue-600">${r.m} M</td>
+                        <td class="p-3 text-slate-600">${r.w} mm</td>
+                        <td class="p-3">${r.a.toFixed(1)}</td>
+                        <td class="p-3">${r.b.toFixed(1)}</td>
+                        <td class="p-3">${r.c.toFixed(1)}</td>
+                        <td class="p-3 font-bold text-slate-900">${r.total.toFixed(1)}</td>
+                    </tr>
+                `).join('');
+            } else {
+                header.innerHTML = `
+                    <th class="p-3">產品</th>
+                    <th class="p-3">塗佈米數 (M)</th>
+                    <th class="p-3">寬幅 (mm)</th>
+                    <th class="p-3">B 膠 (kg)</th>
+                    <th class="p-3">E 膠 (kg)</th>
+                    <th class="p-3">G 膠 (kg)</th>
+                    <th class="p-3">總配膠量 (kg)</th>
+                `;
+                body.innerHTML = rows.map(r => `
+                    <tr class="hover:bg-slate-50">
+                        <td class="p-3 font-bold">${r.prod}</td>
+                        <td class="p-3 font-semibold text-blue-600">${r.m} M</td>
+                        <td class="p-3 text-slate-600">${r.w} mm</td>
+                        <td class="p-3">${r.b.toFixed(1)}</td>
+                        <td class="p-3">${r.e.toFixed(1)}</td>
+                        <td class="p-3">${r.g.toFixed(1)}</td>
+                        <td class="p-3 font-bold text-slate-900">${r.total.toFixed(1)}</td>
+                    </tr>
+                `).join('');
             }
-            currentMaterials.splice(index, 1);
-            renderMaterialsTable();
-            markTicketModified();
         }
 
-        function markTicketModified() {
-            document.getElementById('modified-status').textContent = '狀態：已進行手動人工微調';
-            document.getElementById('modified-status').className = 'text-xs text-amber-600 font-bold';
+        function exportCSV() {
+            const rows = dbData[currentTab];
+            let csv = currentTab === 'T1' ? '產品,塗佈米數(M),寬幅(mm),A膠(kg),B膠(kg),C膠(kg),總配膠量(kg)\\n' : '產品,塗佈米數(M),寬幅(mm),B膠(kg),E膠(kg),G膠(kg),總配膠量(kg)\\n';
+            
+            rows.forEach(r => {
+                if (currentTab === 'T1') {
+                    csv += `${r.prod},${r.m},${r.w},${r.a},${r.b},${r.c},${r.total}\\n`;
+                } else {
+                    csv += `${r.prod},${r.m},${r.w},${r.b},${r.e},${r.g},${r.total}\\n`;
+                }
+            });
+
+            const blob = new Blob(['\\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${currentTab}_配膠資料庫.csv`;
+            link.click();
         }
 
-        function onTicketMetersChange() {
-            const m = parseFloat(document.getElementById('ticket-meters').value) || 0;
-            document.getElementById('target-meters').value = m;
-            calculateAndGenerate();
-        }
-
-        // Save Ticket History
-        function saveCurrentTicketToHistory() {
-            const ticketNo = document.getElementById('ticket-no').value;
-            const prodName = document.getElementById('ticket-prod-name').value;
-            const meters = document.getElementById('ticket-meters').value;
-            const operator = document.getElementById('ticket-operator').value;
-            const totalWeight = document.getElementById('ticket-total-weight').textContent;
-
-            const record = {
-                id: Date.now(),
-                ticketNo,
-                prodName,
-                meters,
-                operator,
-                totalWeight,
-                materials: [...currentMaterials],
-                timestamp: new Date().toLocaleString('zh-TW')
-            };
-
-            ticketHistory.unshift(record);
-            localStorage.setItem('glue_history_tickets', JSON.stringify(ticketHistory));
-            renderHistoryList();
-            showToast(`配膠單 ${ticketNo} 已成功儲存至歷史紀錄！`);
-        }
-
-        function renderHistoryList() {
-            const list = document.getElementById('history-list');
-            document.getElementById('history-count').textContent = `${ticketHistory.length} 單`;
-
-            if (ticketHistory.length === 0) {
-                list.innerHTML = `<p class="text-xs text-slate-400 text-center py-4">尚無儲存的單據紀錄</p>`;
-                return;
-            }
-
-            list.innerHTML = ticketHistory.map((item) => `
-                <div class="bg-slate-50 hover:bg-white border border-slate-200 rounded-xl p-2.5 transition text-xs flex justify-between items-center">
-                    <div>
-                        <div class="font-bold text-slate-900">${item.prodName} (${item.meters}M)</div>
-                        <div class="text-[10px] text-slate-500">${item.ticketNo} • 總重 ${item.totalWeight}</div>
-                    </div>
-                    <div class="flex items-center gap-1">
-                        <button onclick="loadHistoryTicket(${item.id})" class="bg-brand-50 text-brand-700 px-2 py-1 rounded font-semibold text-[11px] hover:bg-brand-100">
-                            載入
-                        </button>
-                        <button onclick="deleteHistoryTicket(${item.id})" class="text-rose-500 hover:text-rose-700 p-1">
-                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-
-            lucide.createIcons();
-        }
-
-        function loadHistoryTicket(id) {
-            const item = ticketHistory.find(t => t.id === id);
-            if (!item) return;
-
-            document.getElementById('ticket-no').value = item.ticketNo;
-            document.getElementById('ticket-prod-name').value = item.prodName;
-            document.getElementById('ticket-meters').value = item.meters;
-            document.getElementById('target-meters').value = item.meters;
-            document.getElementById('ticket-operator').value = item.operator;
-
-            currentMaterials = [...item.materials];
-            renderMaterialsTable();
-            markTicketModified();
-            showToast(`已載入單據 ${item.ticketNo}`);
-        }
-
-        function deleteHistoryTicket(id) {
-            ticketHistory = ticketHistory.filter(t => t.id !== id);
-            localStorage.setItem('glue_history_tickets', JSON.stringify(ticketHistory));
-            renderHistoryList();
-        }
-
-        // Template Manager Functions
-        function saveCurrentAsTemplate() {
-            const prodName = prompt('請輸入新產品配比範本名稱：', 'Test 4 (自訂)');
-            if (!prodName) return;
-
-            const baseM = parseFloat(document.getElementById('base-meters').value) || 500;
-            const a = parseFloat(document.getElementById('base-a').value) || 0;
-            const b = parseFloat(document.getElementById('base-b').value) || 0;
-            const c = parseFloat(document.getElementById('base-c').value) || 0;
-
-            const newTmpl = {
-                id: 'custom_' + Date.now(),
-                name: prodName,
-                baseM, a, b, c
-            };
-
-            templates.push(newTmpl);
-            localStorage.setItem('glue_templates', JSON.stringify(templates));
-            renderTemplateSelect();
-            document.getElementById('product-template-select').value = newTmpl.id;
-            showToast(`已成功新增產品範本 「${prodName}」！`);
-        }
-
-        function openTemplateModal() {
-            const modal = document.getElementById('template-modal');
-            const list = document.getElementById('modal-template-list');
-
-            list.innerHTML = templates.map((t, idx) => `
-                <div class="flex justify-between items-center p-2.5 bg-slate-50 border rounded-lg text-xs">
-                    <div>
-                        <span class="font-bold text-slate-800">${t.name}</span>
-                        <div class="text-[10px] text-slate-500">${t.baseM}M ➔ A:${t.a}kg, B:${t.b}kg, C:${t.c}kg</div>
-                    </div>
-                    ${idx >= 3 ? `<button onclick="deleteTemplate('${t.id}')" class="text-rose-500 hover:text-rose-700 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '<span class="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded">內建</span>'}
-                </div>
-            `).join('');
-
-            lucide.createIcons();
-            modal.classList.remove('hidden');
-        }
-
-        function closeTemplateModal() {
-            document.getElementById('template-modal').classList.add('hidden');
-        }
-
-        function deleteTemplate(id) {
-            templates = templates.filter(t => t.id !== id);
-            localStorage.setItem('glue_templates', JSON.stringify(templates));
-            renderTemplateSelect();
-            openTemplateModal();
-            showToast('已刪除自訂範本');
-        }
+        window.onload = init;
     </script>
 </body>
 </html>
+"""
+
+with open('index.html', 'w', encoding='utf-8') as f:
+    f.write(html_code)
+
+print("HTML written successfully. Size:", len(html_code))
